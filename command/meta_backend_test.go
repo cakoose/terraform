@@ -2153,6 +2153,100 @@ func TestMetaBackend_planLocal(t *testing.T) {
 	}
 }
 
+// A plan with a custom state save path
+func TestMetaBackend_planLocalStatePath(t *testing.T) {
+	// Create a temporary working directory that is empty
+	td := tempDir(t)
+	copy.CopyDir(testFixturePath("backend-plan-local"), td)
+	defer os.RemoveAll(td)
+	defer testChdir(t, td)()
+
+	// Create our state
+	original := testState()
+	original.Lineage = "hello"
+
+	// Create the plan
+	plan := &terraform.Plan{
+		Module: testModule(t, "backend-plan-local"),
+		State:  original,
+	}
+
+	// Create an alternate output path
+	statePath := "foo.tfstate"
+
+	// Setup the meta
+	m := testMetaBackend(t, nil)
+	m.stateOutPath = statePath
+
+	// Get the backend
+	b, err := m.Backend(&BackendOpts{Plan: plan})
+	if err != nil {
+		t.Fatalf("bad: %s", err)
+	}
+
+	// Check the state
+	s, err := b.State()
+	if err != nil {
+		t.Fatalf("bad: %s", err)
+	}
+	if err := s.RefreshState(); err != nil {
+		t.Fatalf("bad: %s", err)
+	}
+	state := s.State()
+	if state == nil {
+		t.Fatal("state is nil")
+	}
+	if state.Lineage != "hello" {
+		t.Fatalf("bad: %#v", state)
+	}
+
+	// Verify the default path doesn't exist
+	if _, err := os.Stat(DefaultStateFilename); err == nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	// Verify a backup doesn't exists
+	if _, err := os.Stat(DefaultStateFilename + DefaultBackupExtension); err == nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	// Verify we have no configured backend/legacy
+	path := filepath.Join(m.DataDir(), DefaultStateFilename)
+	if _, err := os.Stat(path); err == nil {
+		t.Fatalf("should not have backend configured")
+	}
+
+	// Write some state
+	state = terraform.NewState()
+	state.Lineage = "changing"
+	s.WriteState(state)
+	if err := s.PersistState(); err != nil {
+		t.Fatalf("bad: %s", err)
+	}
+
+	// Verify the state is where we expect
+	{
+		f, err := os.Open(statePath)
+		if err != nil {
+			t.Fatalf("err: %s", err)
+		}
+		actual, err := terraform.ReadState(f)
+		f.Close()
+		if err != nil {
+			t.Fatalf("err: %s", err)
+		}
+
+		if actual.Lineage != state.Lineage {
+			t.Fatalf("bad: %#v", actual)
+		}
+	}
+
+	// Verify we have a backup
+	if _, err := os.Stat(statePath + DefaultBackupExtension); err != nil {
+		t.Fatalf("err: %s", err)
+	}
+}
+
 // A plan that has no backend config, matching local state
 func TestMetaBackend_planLocalMatch(t *testing.T) {
 	// Create a temporary working directory that is empty

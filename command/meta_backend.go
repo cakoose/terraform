@@ -91,9 +91,9 @@ func (m *Meta) Backend(opts *BackendOpts) (backend.Enhanced, error) {
 		if err != nil {
 			return nil, err
 		}
-	}
 
-	log.Printf("[INFO] command: backend initialized: %T", b)
+		log.Printf("[INFO] command: backend initialized: %T", b)
+	}
 
 	// If the result of loading the backend is an enhanced backend,
 	// then return that as-is. This works even if b == nil (it will be !ok).
@@ -105,7 +105,9 @@ func (m *Meta) Backend(opts *BackendOpts) (backend.Enhanced, error) {
 	// all. In either case, we use local as our enhanced backend and the
 	// non-enhanced (if any) as the state backend.
 
-	log.Printf("[INFO] command: backend %T is not enhanced, wrapping in local", b)
+	if !opts.ForceLocal {
+		log.Printf("[INFO] command: backend %T is not enhanced, wrapping in local", b)
+	}
 
 	// Build the local backend
 	return &backendlocal.Local{
@@ -332,14 +334,6 @@ func (m *Meta) backendFromPlan(opts *BackendOpts) (backend.Backend, error) {
 				"and specify the state path when creating the plan.")
 	}
 
-	// We currently don't allow "-state-out" to be specified.
-	if m.stateOutPath != "" {
-		return nil, fmt.Errorf(
-			"`-state-out` cannot be specified with a plan file currently. The plan itself\n" +
-				"contains the state configuration. If you wish to change that, please create a\n" +
-				"new plan and specify the state path.")
-	}
-
 	// We don't allow "-backend-config" currently.
 	if m.backendConfigPath != "" {
 		return nil, fmt.Errorf(
@@ -353,6 +347,15 @@ func (m *Meta) backendFromPlan(opts *BackendOpts) (backend.Backend, error) {
 		// The state can be nil, we just have to make it empty for the logic
 		// in this function.
 		planState = terraform.NewState()
+	}
+
+	// Validation only for non-local plans
+	local := planState.Remote.Empty() && planState.Backend.Empty()
+	if !local {
+		// We currently don't allow "-state-out" to be specified.
+		if m.stateOutPath != "" {
+			return nil, fmt.Errorf(strings.TrimSpace(errBackendPlanStateFlag))
+		}
 	}
 
 	/*
@@ -375,6 +378,13 @@ func (m *Meta) backendFromPlan(opts *BackendOpts) (backend.Backend, error) {
 			}
 		}
 	*/
+
+	// If we have a stateOutPath, we must also specify it as the
+	// input path so we can check it properly. We restore it after this
+	// function exits.
+	original := m.statePath
+	m.statePath = m.stateOutPath
+	defer func() { m.statePath = original }()
 
 	var b backend.Backend
 	var err error
@@ -1375,6 +1385,16 @@ The most common cause of seeing this error is using a plan that was
 created against a different state. Perhaps the plan is very old and the
 state has since been recreated, or perhaps the plan was against a competely
 different infrastructure.
+`
+
+const errBackendPlanStateFlag = `
+The -state and -state-out flags cannot be set with a plan that has a remote
+state. The plan itself contains the configuration for the remote backend to
+store state. The state will be written there for consistency.
+
+If you wish to change this behavior, please create a plan from local state.
+You may use the state flags with plans from local state to affect where
+the final state is written.
 `
 
 const errBackendPlanOlder = `
