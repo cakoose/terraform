@@ -37,6 +37,13 @@ type Meta struct {
 	ExtraHooks []terraform.Hook
 
 	//----------------------------------------------------------
+	// Protected: commands can set these
+	//----------------------------------------------------------
+
+	// Modify the data directory location. Defaults to DefaultDataDir
+	dataDir string
+
+	//----------------------------------------------------------
 	// Private: do not set these
 	//----------------------------------------------------------
 
@@ -87,13 +94,6 @@ type Meta struct {
 	parallelism       int
 	shadow            bool
 	provider          string
-
-	//----------------------------------------------------------
-	// Test: the fields below are only used for unit tests
-	//----------------------------------------------------------
-
-	// This can be set by tests to change some directories
-	dataDir string
 
 	//----------------------------------------------------------
 	// TODO: REMOVE

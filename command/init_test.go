@@ -3,9 +3,10 @@ package command
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/hashicorp/terraform/terraform"
+	"github.com/hashicorp/terraform/helper/copy"
 	"github.com/mitchellh/cli"
 )
 
@@ -87,21 +88,6 @@ func TestInit_multipleArgs(t *testing.T) {
 	}
 }
 
-func TestInit_noArgs(t *testing.T) {
-	ui := new(cli.MockUi)
-	c := &InitCommand{
-		Meta: Meta{
-			ContextOpts: testCtxConfig(testProvider()),
-			Ui:          ui,
-		},
-	}
-
-	args := []string{}
-	if code := c.Run(args); code != 1 {
-		t.Fatalf("bad: \n%s", ui.OutputWriter.String())
-	}
-}
-
 // https://github.com/hashicorp/terraform/issues/518
 func TestInit_dstInSrc(t *testing.T) {
 	dir := tempDir(t)
@@ -144,6 +130,92 @@ func TestInit_dstInSrc(t *testing.T) {
 	}
 }
 
+func TestInit_get(t *testing.T) {
+	// Create a temporary working directory that is empty
+	td := tempDir(t)
+	copy.CopyDir(testFixturePath("init-get"), td)
+	defer os.RemoveAll(td)
+	defer testChdir(t, td)()
+
+	ui := new(cli.MockUi)
+	c := &InitCommand{
+		Meta: Meta{
+			ContextOpts: testCtxConfig(testProvider()),
+			Ui:          ui,
+		},
+	}
+
+	args := []string{}
+	if code := c.Run(args); code != 0 {
+		t.Fatalf("bad: \n%s", ui.ErrorWriter.String())
+	}
+
+	// Check output
+	output := ui.OutputWriter.String()
+	if !strings.Contains(output, "Get: file://") {
+		t.Fatalf("doesn't look like get: %s", output)
+	}
+}
+
+func TestInit_copyGet(t *testing.T) {
+	// Create a temporary working directory that is empty
+	td := tempDir(t)
+	os.MkdirAll(td, 0755)
+	defer os.RemoveAll(td)
+	defer testChdir(t, td)()
+
+	ui := new(cli.MockUi)
+	c := &InitCommand{
+		Meta: Meta{
+			ContextOpts: testCtxConfig(testProvider()),
+			Ui:          ui,
+		},
+	}
+
+	args := []string{
+		testFixturePath("init-get"),
+	}
+	if code := c.Run(args); code != 0 {
+		t.Fatalf("bad: \n%s", ui.ErrorWriter.String())
+	}
+
+	// Check copy
+	if _, err := os.Stat("main.tf"); err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	output := ui.OutputWriter.String()
+	if !strings.Contains(output, "Get: file://") {
+		t.Fatalf("doesn't look like get: %s", output)
+	}
+}
+
+func TestInit_backend(t *testing.T) {
+	// Create a temporary working directory that is empty
+	td := tempDir(t)
+	copy.CopyDir(testFixturePath("init-backend"), td)
+	defer os.RemoveAll(td)
+	defer testChdir(t, td)()
+
+	ui := new(cli.MockUi)
+	c := &InitCommand{
+		Meta: Meta{
+			ContextOpts: testCtxConfig(testProvider()),
+			Ui:          ui,
+		},
+	}
+
+	args := []string{}
+	if code := c.Run(args); code != 0 {
+		t.Fatalf("bad: \n%s", ui.ErrorWriter.String())
+	}
+
+	if _, err := os.Stat(filepath.Join(DefaultDataDir, DefaultStateFilename)); err != nil {
+		t.Fatalf("err: %s", err)
+	}
+}
+
+/*
 func TestInit_remoteState(t *testing.T) {
 	tmp, cwd := testCwd(t)
 	defer testFixCwd(t, tmp, cwd)
@@ -287,3 +359,4 @@ func TestInit_remoteStateWithRemote(t *testing.T) {
 		t.Fatalf("should have failed: \n%s", ui.OutputWriter.String())
 	}
 }
+*/

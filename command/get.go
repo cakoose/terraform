@@ -38,15 +38,8 @@ func (c *GetCommand) Run(args []string) int {
 		mode = module.GetModeUpdate
 	}
 
-	mod, err := module.NewTreeModule("", path)
-	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error loading configuration: %s", err))
-		return 1
-	}
-
-	err = mod.Load(c.moduleStorage(c.DataDir()), mode)
-	if err != nil {
-		c.Ui.Error(fmt.Sprintf("Error loading modules: %s", err))
+	if err := getModules(&c.Meta, path, mode); err != nil {
+		c.Ui.Error(err.Error())
 		return 1
 	}
 
@@ -78,4 +71,18 @@ Options:
 
 func (c *GetCommand) Synopsis() string {
 	return "Download and install modules for the configuration"
+}
+
+func getModules(m *Meta, path string, mode module.GetMode) error {
+	mod, err := module.NewTreeModule("", path)
+	if err != nil {
+		return fmt.Errorf("Error loading configuration: %s", err)
+	}
+
+	err = mod.Load(m.moduleStorage(m.DataDir()), mode)
+	if err != nil {
+		return fmt.Errorf("Error loading modules: %s", err)
+	}
+
+	return nil
 }

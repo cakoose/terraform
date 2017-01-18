@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/go-getter"
 	"github.com/hashicorp/terraform/config"
 	"github.com/hashicorp/terraform/config/module"
-	"github.com/hashicorp/terraform/terraform"
 )
 
 // InitCommand is a Command implementation that takes a Terraform
@@ -20,39 +19,46 @@ type InitCommand struct {
 }
 
 func (c *InitCommand) Run(args []string) int {
-	var remoteBackend string
+	var flagBackend, flagGet bool
 	args = c.Meta.process(args, false)
-	remoteConfig := make(map[string]string)
 	cmdFlags := flag.NewFlagSet("init", flag.ContinueOnError)
-	cmdFlags.StringVar(&remoteBackend, "backend", "", "")
-	cmdFlags.Var((*FlagStringKV)(&remoteConfig), "backend-config", "config")
+	cmdFlags.BoolVar(&flagBackend, "backend", true, "")
+	cmdFlags.BoolVar(&flagGet, "get", true, "")
 	cmdFlags.Usage = func() { c.Ui.Error(c.Help()) }
 	if err := cmdFlags.Parse(args); err != nil {
 		return 1
 	}
 
-	remoteBackend = strings.ToLower(remoteBackend)
-
-	var path string
+	// Validate the arg count
 	args = cmdFlags.Args()
 	if len(args) > 2 {
 		c.Ui.Error("The init command expects at most two arguments.\n")
 		cmdFlags.Usage()
 		return 1
-	} else if len(args) < 1 {
-		c.Ui.Error("The init command expects at least one arguments.\n")
-		cmdFlags.Usage()
+	}
+
+	// Get our pwd. We don't always need it but always getting it is easier
+	// than the logic to determine if it is or isn't needed.
+	pwd, err := os.Getwd()
+	if err != nil {
+		c.Ui.Error(fmt.Sprintf("Error getting pwd: %s", err))
 		return 1
 	}
 
-	if len(args) == 2 {
+	// Get the path and source module to copy
+	var path string
+	var source string
+	switch len(args) {
+	case 0:
+		path = pwd
+	case 1:
+		path = pwd
+		source = args[0]
+	case 2:
+		source = args[0]
 		path = args[1]
-	} else {
-		var err error
-		path, err = os.Getwd()
-		if err != nil {
-			c.Ui.Error(fmt.Sprintf("Error getting pwd: %s", err))
-		}
+	default:
+		panic("assertion failed on arg count")
 	}
 
 	// Set the state out path to be the path requested for the module
@@ -60,82 +66,64 @@ func (c *InitCommand) Run(args []string) int {
 	// proper directory.
 	c.Meta.dataDir = filepath.Join(path, DefaultDataDir)
 
-	source := args[0]
-
-	// Get our pwd since we need it
-	pwd, err := os.Getwd()
-	if err != nil {
-		c.Ui.Error(fmt.Sprintf(
-			"Error reading working directory: %s", err))
-		return 1
+	// If we have a source, copy it
+	if source != "" {
+		c.Ui.Output(c.Colorize().Color(fmt.Sprintf(
+			"[reset][bold]"+
+				"Initializing configuration from: %q...", source)))
+		if err := c.copySource(path, source, pwd); err != nil {
+			c.Ui.Error(fmt.Sprintf(
+				"Error copying source: %s", err))
+			return 1
+		}
 	}
 
+	// If we requested downloading modules, do that
+	if flagGet {
+		c.Ui.Output(c.Colorize().Color(fmt.Sprintf(
+			"[reset][bold]" +
+				"Downloading modules (if any)...")))
+		if err := getModules(&c.Meta, path, module.GetModeGet); err != nil {
+			c.Ui.Error(fmt.Sprintf(
+				"Error downloading modules: %s", err))
+			return 1
+		}
+	}
+
+	// If we're requesting backend configuration, do it!
+	if flagBackend {
+		c.Ui.Output(c.Colorize().Color(fmt.Sprintf(
+			"[reset][bold]" +
+				"Initializing the backend...")))
+		if _, err := c.Backend(nil); err != nil {
+			c.Ui.Error(err.Error())
+			return 1
+		}
+	}
+
+	c.Ui.Output(c.Colorize().Color(
+		"\n" +
+			strings.TrimSpace(outputInitSuccess)))
+
+	return 0
+}
+
+func (c *InitCommand) copySource(dst, src, pwd string) error {
 	// Verify the directory is empty
-	if empty, err := config.IsEmptyDir(path); err != nil {
-		c.Ui.Error(fmt.Sprintf(
-			"Error checking on destination path: %s", err))
-		return 1
+	if empty, err := config.IsEmptyDir(dst); err != nil {
+		return fmt.Errorf("Error checking on destination path: %s", err)
 	} else if !empty {
-		c.Ui.Error(
-			"The destination path has Terraform configuration files. The\n" +
-				"init command can only be used on a directory without existing Terraform\n" +
-				"files.")
-		return 1
+		return fmt.Errorf(strings.TrimSpace(errInitCopyNotEmpty))
 	}
 
 	// Detect
-	source, err = getter.Detect(source, pwd, getter.Detectors)
+	source, err := getter.Detect(src, pwd, getter.Detectors)
 	if err != nil {
-		c.Ui.Error(fmt.Sprintf(
-			"Error with module source: %s", err))
-		return 1
+		return fmt.Errorf("Error with module source: %s", err)
 	}
 
 	// Get it!
-	if err := module.GetCopy(path, source); err != nil {
-		c.Ui.Error(err.Error())
-		return 1
-	}
-
-	// Handle remote state if configured
-	if remoteBackend != "" {
-		var remoteConf terraform.RemoteState
-		remoteConf.Type = remoteBackend
-		remoteConf.Config = remoteConfig
-
-		state, err := c.State()
-		if err != nil {
-			c.Ui.Error(fmt.Sprintf("Error checking for state: %s", err))
-			return 1
-		}
-		if state != nil {
-			s := state.State()
-			if !s.Empty() {
-				c.Ui.Error(fmt.Sprintf(
-					"State file already exists and is not empty! Please remove this\n" +
-						"state file before initializing. Note that removing the state file\n" +
-						"may result in a loss of information since Terraform uses this\n" +
-						"to track your infrastructure."))
-				return 1
-			}
-			if s.IsRemote() {
-				c.Ui.Error(fmt.Sprintf(
-					"State file already exists with remote state enabled! Please remove this\n" +
-						"state file before initializing. Note that removing the state file\n" +
-						"may result in a loss of information since Terraform uses this\n" +
-						"to track your infrastructure."))
-				return 1
-			}
-		}
-
-		// Initialize a blank state file with remote enabled
-		remoteCmd := &RemoteConfigCommand{
-			Meta:       c.Meta,
-			remoteConf: &remoteConf,
-		}
-		return remoteCmd.initBlankState()
-	}
-	return 0
+	return module.GetCopy(dst, source)
 }
 
 func (c *InitCommand) Help() string {
@@ -150,13 +138,17 @@ Usage: terraform init [options] [SOURCE] [PATH]
   necessary to run Terraform that is typically not comitted to version
   control.
 
-  If no arguments are given, the configuration in this working directory
-  is initialized. If one argument is given, the configuration in the directory
-  specified as the argument is initialized.
+  This command is always safe to run multiple times. Though subsequent runs
+  may give errors, this command will never blow away your environment or state.
+  Even so, if you have important information, please back it up prior to
+  running this command just in case.
 
-  If two arguments are given, the first is a SOURCE of a module to download
-  to the second argument PATH. After downloading the module to PATH, the
-  configuration will be initialized as if this command were called pointing
+  If no arguments are given, the configuration in this working directory
+  is initialized.
+
+  If one or two arguments are given, the first is a SOURCE of a module to
+  download to the second argument PATH. After downloading the module to PATH,
+  the configuration will be initialized as if this command were called pointing
   only to that PATH. PATH must be empty of any Terraform files. Any
   conflicting non-Terraform files will be overwritten. The module download
   is a copy. If you're downloading a module from Git, it will not preserve
@@ -164,11 +156,9 @@ Usage: terraform init [options] [SOURCE] [PATH]
 
 Options:
 
-  -backend=atlas         Specifies the type of remote backend. If not
-                         specified, local storage will be used.
+  -backend=true       If true, configure the backend for this environment.
 
-  -backend-config="k=v"  Specifies configuration for the remote storage
-                         backend. This can be specified multiple times.
+  -get=true           If true, download any modules for this configuration.
 
   -no-color           If specified, output won't contain any color.
 
@@ -179,3 +169,19 @@ Options:
 func (c *InitCommand) Synopsis() string {
 	return "Initialize a new or existing Terraform configuration"
 }
+
+const errInitCopyNotEmpty = `
+The destination path contains Terraform configuration files. The init command
+with a SOURCE parameter can only be used on a directory without existing
+Terraform files.
+
+Please resolve this issue and try again.
+`
+
+const outputInitSuccess = `
+Terraform has been successfully initialized!
+
+You may now begin working with Terraform. Try running "terraform plan" to see
+any changes that are required for your infrastructure. All Terraform commands
+should now work.
+`
