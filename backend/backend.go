@@ -16,7 +16,7 @@ import (
 type Backend interface {
 	// Ask for input and configure the backend. Similar to
 	// terraform.ResourceProvider.
-	//Input(*terraform.ResourceConfig) (*terraform.ResourceConfig, error)
+	Input(terraform.UIInput, *terraform.ResourceConfig) (*terraform.ResourceConfig, error)
 	Validate(*terraform.ResourceConfig) ([]string, []error)
 	Configure(*terraform.ResourceConfig) error
 

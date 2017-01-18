@@ -19,6 +19,12 @@ type Backend struct {
 	client remote.Client
 }
 
+func (b *Backend) Input(
+	ui terraform.UIInput, c *terraform.ResourceConfig) (*terraform.ResourceConfig, error) {
+	// Return the config as-is, legacy doesn't support input
+	return c, nil
+}
+
 func (b *Backend) Validate(*terraform.ResourceConfig) ([]string, []error) {
 	// No validation was supported for old clients
 	return nil, nil

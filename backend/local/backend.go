@@ -39,13 +39,13 @@ type Local struct {
 	// Operation. See Operation for more details.
 	ContextOpts *terraform.ContextOpts
 
-	// Input will ask for necessary input prior to performing any operations.
+	// OpInput will ask for necessary input prior to performing any operations.
 	//
-	// Validation will perform validation prior to running an operation. The
+	// OpValidation will perform validation prior to running an operation. The
 	// variable naming doesn't match the style of others since we have a func
 	// Validate.
-	Input      bool
-	Validation bool
+	OpInput      bool
+	OpValidation bool
 
 	// Backend, if non-nil, will use this backend for non-enhanced behavior.
 	// This allows local behavior with remote state storage. It is a way to
@@ -58,6 +58,18 @@ type Local struct {
 	schema *schema.Backend
 	opLock sync.Mutex
 	once   sync.Once
+}
+
+func (b *Local) Input(
+	ui terraform.UIInput, c *terraform.ResourceConfig) (*terraform.ResourceConfig, error) {
+	b.once.Do(b.init)
+
+	f := b.schema.Input
+	if b.Backend != nil {
+		f = b.Backend.Input
+	}
+
+	return f(ui, c)
 }
 
 func (b *Local) Validate(c *terraform.ResourceConfig) ([]string, []error) {

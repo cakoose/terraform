@@ -38,6 +38,16 @@ func FromContextBackendConfig(ctx context.Context) *ResourceData {
 	return ctx.Value(backendConfigKey).(*ResourceData)
 }
 
+func (b *Backend) Input(
+	input terraform.UIInput,
+	c *terraform.ResourceConfig) (*terraform.ResourceConfig, error) {
+	if b == nil {
+		return c, nil
+	}
+
+	return schemaMap(b.Schema).Input(input, c)
+}
+
 func (b *Backend) Validate(c *terraform.ResourceConfig) ([]string, []error) {
 	if b == nil {
 		return nil, nil

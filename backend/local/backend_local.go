@@ -60,7 +60,7 @@ func (b *Local) context(op *backend.Operation) (*terraform.Context, state.State,
 	// here since every option requires this.
 	if op.Type != backend.OperationTypeInvalid {
 		// If input asking is enabled, then do that
-		if op.Plan == nil && b.Input {
+		if op.Plan == nil && b.OpInput {
 			mode := terraform.InputModeProvider
 			mode |= terraform.InputModeVar
 			mode |= terraform.InputModeVarUnset
@@ -71,7 +71,7 @@ func (b *Local) context(op *backend.Operation) (*terraform.Context, state.State,
 		}
 
 		// If validation is enabled, validate
-		if b.Validation {
+		if b.OpValidation {
 			// We ignore warnings here on purpose. We expect users to be listening
 			// to the terraform.Hook called after a validation.
 			_, es := tfCtx.Validate()

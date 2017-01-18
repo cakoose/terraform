@@ -60,7 +60,7 @@ func TestLocal_refreshInput(t *testing.T) {
 	defer modCleanup()
 
 	// Enable input asking since it is normally disabled by default
-	b.Input = true
+	b.OpInput = true
 	b.ContextOpts.UIInput = &terraform.MockUIInput{InputReturnString: "bar"}
 
 	op := testOperationRefresh()
@@ -95,7 +95,7 @@ func TestLocal_refreshValidate(t *testing.T) {
 	defer modCleanup()
 
 	// Enable validation
-	b.Validation = true
+	b.OpValidation = true
 
 	op := testOperationRefresh()
 	op.Module = mod
