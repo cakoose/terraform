@@ -197,9 +197,12 @@ Usage: terraform init [options] [SOURCE] [PATH]
 
 Options:
 
-  -backend=true       If true, configure the backend for this environment.
+  -backend=true       Configure the backend for this environment.
 
-  -get=true           If true, download any modules for this configuration.
+  -get=true           Download any modules for this configuration.
+
+  -input=true         Ask for input if necessary. If false, will error if
+                      input was required.
 
   -no-color           If specified, output won't contain any color.
 

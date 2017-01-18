@@ -78,22 +78,18 @@ type Meta struct {
 	// backupPath is used to backup the state file before writing a modified
 	// version. It defaults to stateOutPath + DefaultBackupExtension
 	//
-	// backendConfigPath is used to set the configuration path for the
-	// backend configuration. This defaults to the pwd.
-	//
 	// parallelism is used to control the number of concurrent operations
 	// allowed when walking the graph
 	//
 	// shadow is used to enable/disable the shadow graph
 	//
 	// provider is to specify specific resource providers
-	statePath         string
-	stateOutPath      string
-	backupPath        string
-	backendConfigPath string
-	parallelism       int
-	shadow            bool
-	provider          string
+	statePath    string
+	stateOutPath string
+	backupPath   string
+	parallelism  int
+	shadow       bool
+	provider     string
 
 	//----------------------------------------------------------
 	// TODO: REMOVE
@@ -275,7 +271,6 @@ func (m *Meta) contextOpts() *terraform.ContextOpts {
 func (m *Meta) flagSet(n string) *flag.FlagSet {
 	f := flag.NewFlagSet(n, flag.ContinueOnError)
 	f.BoolVar(&m.input, "input", true, "input")
-	f.StringVar(&m.backendConfigPath, "backend-config", "", "input")
 	f.Var((*variables.Flag)(&m.variables), "var", "variables")
 	f.Var((*variables.FlagFile)(&m.variables), "var-file", "variable file")
 	f.Var((*FlagStringSlice)(&m.targets), "target", "resource to target")

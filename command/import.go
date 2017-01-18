@@ -59,7 +59,7 @@ func (c *ImportCommand) Run(args []string) int {
 	}
 
 	// Load the backend
-	b, err := c.Backend(nil)
+	b, err := c.Backend(&BackendOpts{ConfigPath: configPath})
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Failed to load backend: %s", err))
 		return 1

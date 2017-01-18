@@ -24,8 +24,7 @@ import (
 // BackendOpts are the options used to initialize a backend.Backend.
 type BackendOpts struct {
 	// ConfigPath is a path to a file or directory containing the backend
-	// configuration. If "-backend-config" is set and processed on Meta,
-	// that will take priority.
+	// configuration.
 	ConfigPath string
 
 	// Plan is a plan that is being used. If this is set, the backend
@@ -140,14 +139,10 @@ func (m *Meta) Operation() *backend.Operation {
 func (m *Meta) backendConfig(opts *BackendOpts) (*config.Backend, error) {
 	// If no explicit path was given then it is okay for there to be
 	// no backend configuration found.
-	emptyOk := opts.ConfigPath == "" && m.backendConfigPath == ""
+	emptyOk := opts.ConfigPath == ""
 
-	// Determine the path to the configuration. If the "-backend-config"
-	// flag was set, that always takes priority.
+	// Determine the path to the configuration.
 	path := opts.ConfigPath
-	if m.backendConfigPath != "" {
-		path = m.backendConfigPath
-	}
 
 	// If we had no path set, it is an error. We can't initialize unset
 	if path == "" {
@@ -189,7 +184,7 @@ func (m *Meta) backendConfig(opts *BackendOpts) (*config.Backend, error) {
 	if err != nil {
 		// Check for the error where we have no config files and return nil
 		// as the configuration type.
-		if emptyOk && errwrap.ContainsType(err, new(config.ErrNoConfigsFound)) {
+		if errwrap.ContainsType(err, new(config.ErrNoConfigsFound)) {
 			log.Printf(
 				"[INFO] command: backend config not found, returning nil: %s",
 				path)
@@ -332,14 +327,6 @@ func (m *Meta) backendFromPlan(opts *BackendOpts) (backend.Backend, error) {
 			"State path cannot be specified with a plan file. The plan itself contains\n" +
 				"the state to use. If you wish to change that, please create a new plan\n" +
 				"and specify the state path when creating the plan.")
-	}
-
-	// We don't allow "-backend-config" currently.
-	if m.backendConfigPath != "" {
-		return nil, fmt.Errorf(
-			"`-backend-config-path` cannot be specified with a plan file currently. The plan\n" +
-				"itself encodes the backend configuration. If you wish to change that, please create\n" +
-				"a new plan with the proper backend configuration.")
 	}
 
 	planState := opts.Plan.State

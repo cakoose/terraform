@@ -101,6 +101,10 @@ func (c *ApplyCommand) Run(args []string) int {
 			"Destroy can't be called with a plan file."))
 		return 1
 	}
+	if plan != nil {
+		// Reset the config path for backend loading
+		configPath = ""
+	}
 
 	// Load the module if we don't have one yet (not running from plan)
 	var mod *module.Tree
@@ -127,7 +131,10 @@ func (c *ApplyCommand) Run(args []string) int {
 	*/
 
 	// Load the backend
-	b, err := c.Backend(&BackendOpts{Plan: plan})
+	b, err := c.Backend(&BackendOpts{
+		ConfigPath: configPath,
+		Plan:       plan,
+	})
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Failed to load backend: %s", err))
 		return 1

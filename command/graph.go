@@ -47,6 +47,10 @@ func (c *GraphCommand) Run(args []string) int {
 		c.Ui.Error(err.Error())
 		return 1
 	}
+	if plan != nil {
+		// Reset for backend loading
+		configPath = ""
+	}
 
 	// Load the module
 	var mod *module.Tree
@@ -59,7 +63,10 @@ func (c *GraphCommand) Run(args []string) int {
 	}
 
 	// Load the backend
-	b, err := c.Backend(nil)
+	b, err := c.Backend(&BackendOpts{
+		ConfigPath: configPath,
+		Plan:       plan,
+	})
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Failed to load backend: %s", err))
 		return 1

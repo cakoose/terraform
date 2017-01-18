@@ -29,7 +29,7 @@ func (c *PlanCommand) Run(args []string) int {
 	cmdFlags.StringVar(&outPath, "out", "", "path")
 	cmdFlags.IntVar(
 		&c.Meta.parallelism, "parallelism", DefaultParallelism, "parallelism")
-	cmdFlags.StringVar(&c.Meta.statePath, "state", DefaultStateFilename, "path")
+	cmdFlags.StringVar(&c.Meta.statePath, "state", "", "path")
 	cmdFlags.BoolVar(&detailed, "detailed-exitcode", false, "detailed-exitcode")
 	cmdFlags.Usage = func() { c.Ui.Error(c.Help()) }
 	if err := cmdFlags.Parse(args); err != nil {
@@ -51,6 +51,9 @@ func (c *PlanCommand) Run(args []string) int {
 	if plan != nil {
 		// Disable refreshing no matter what since we only want to show the plan
 		refresh = false
+
+		// Set the config path to empty for backend loading
+		configPath = ""
 	}
 
 	// Load the module if we don't have one yet (not running from plan)
@@ -64,7 +67,10 @@ func (c *PlanCommand) Run(args []string) int {
 	}
 
 	// Load the backend
-	b, err := c.Backend(nil)
+	b, err := c.Backend(&BackendOpts{
+		ConfigPath: configPath,
+		Plan:       plan,
+	})
 	if err != nil {
 		c.Ui.Error(fmt.Sprintf("Failed to load backend: %s", err))
 		return 1
