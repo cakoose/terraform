@@ -90,11 +90,7 @@ func (b *Local) opPlan(
 	// Perform some output tasks if we have a CLI to output to.
 	if b.CLI != nil {
 		if plan.Diff.Empty() {
-			b.CLI.Output(
-				"No changes. Infrastructure is up-to-date. This means that Terraform\n" +
-					"could not detect any differences between your configuration and\n" +
-					"the real physical resources that exist. As a result, Terraform\n" +
-					"doesn't need to do anything.")
+			b.CLI.Output(b.Colorize().Color(strings.TrimSpace(planNoChanges)))
 			return
 		}
 
@@ -144,6 +140,14 @@ with this plan file and Terraform will exactly execute this execution
 plan.
 
 Path: %s
+`
+
+const planNoChanges = `
+[reset][bold][green]No changes. Infrastructure is up-to-date.[reset][green]
+
+This means that Terraform could not detect any differences between your
+configuration and real physical resources that exist. As a result, Terraform
+doesn't need to do anything.
 `
 
 const planRefreshing = `
