@@ -50,6 +50,8 @@ func (b *Local) opPlan(
 	// If we're refreshing before plan, perform that
 	if op.PlanRefresh {
 		log.Printf("[INFO] backend/local: plan calling Refresh")
+
+		b.CLI.Output(b.Colorize().Color(strings.TrimSpace(planRefreshing) + "\n"))
 		_, err := tfCtx.Refresh()
 		if err != nil {
 			runningOp.Err = errwrap.Wrapf("Error refreshing state: {{err}}", err)
@@ -93,6 +95,7 @@ func (b *Local) opPlan(
 					"could not detect any differences between your configuration and\n" +
 					"the real physical resources that exist. As a result, Terraform\n" +
 					"doesn't need to do anything.")
+			return
 		}
 
 		if path := op.PlanOutPath; path == "" {
@@ -141,4 +144,10 @@ with this plan file and Terraform will exactly execute this execution
 plan.
 
 Path: %s
+`
+
+const planRefreshing = `
+[reset][bold]Refreshing Terraform state in-memory prior to plan...[reset]
+The refreshed state will be used to calculate this plan, but will not be
+persisted to local or remote state storage.
 `
