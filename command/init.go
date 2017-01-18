@@ -66,6 +66,10 @@ func (c *InitCommand) Run(args []string) int {
 	// proper directory.
 	c.Meta.dataDir = filepath.Join(path, DefaultDataDir)
 
+	// This will track whether we outputted anything so that we know whether
+	// to output a newline before the success message
+	var header bool
+
 	// If we have a source, copy it
 	if source != "" {
 		c.Ui.Output(c.Colorize().Color(fmt.Sprintf(
@@ -76,6 +80,8 @@ func (c *InitCommand) Run(args []string) int {
 				"Error copying source: %s", err))
 			return 1
 		}
+
+		header = true
 	}
 
 	// If our directory is empty, then we're done. We can't get or setup
@@ -85,36 +91,60 @@ func (c *InitCommand) Run(args []string) int {
 			"Error checking configuration: %s", err))
 		return 1
 	} else if empty {
-		c.Ui.Output(c.Colorize().Color(outputInitEmpty))
+		c.Ui.Output(c.Colorize().Color(strings.TrimSpace(outputInitEmpty)))
 		return 0
 	}
 
-	// If we requested downloading modules, do that
-	if flagGet {
-		c.Ui.Output(c.Colorize().Color(fmt.Sprintf(
-			"[reset][bold]" +
-				"Downloading modules (if any)...")))
-		if err := getModules(&c.Meta, path, module.GetModeGet); err != nil {
+	// If we're performing a get or loading the backend, then we perform
+	// some extra tasks.
+	if flagGet || flagBackend {
+		// Load the configuration in this directory so that we can know
+		// if we have anything to get or any backend to configure. We do
+		// this to improve the UX. Practically, we could call the functions
+		// below without checking this to the same effect.
+		conf, err := config.LoadDir(path)
+		if err != nil {
 			c.Ui.Error(fmt.Sprintf(
-				"Error downloading modules: %s", err))
+				"Error loading configuration: %s", err))
 			return 1
+		}
+
+		// If we requested downloading modules and have modules in the config
+		if flagGet && len(conf.Modules) > 0 {
+			header = true
+
+			c.Ui.Output(c.Colorize().Color(fmt.Sprintf(
+				"[reset][bold]" +
+					"Downloading modules (if any)...")))
+			if err := getModules(&c.Meta, path, module.GetModeGet); err != nil {
+				c.Ui.Error(fmt.Sprintf(
+					"Error downloading modules: %s", err))
+				return 1
+			}
+		}
+
+		// If we're requesting backend configuration and configure it
+		hasBackend := conf.Terraform != nil && conf.Terraform.Backend != nil
+		if flagBackend && hasBackend {
+			header = true
+
+			c.Ui.Output(c.Colorize().Color(fmt.Sprintf(
+				"[reset][bold]" +
+					"Initializing the backend...")))
+			if _, err := c.Backend(nil); err != nil {
+				c.Ui.Error(err.Error())
+				return 1
+			}
 		}
 	}
 
-	// If we're requesting backend configuration, do it!
-	if flagBackend {
-		c.Ui.Output(c.Colorize().Color(fmt.Sprintf(
-			"[reset][bold]" +
-				"Initializing the backend...")))
-		if _, err := c.Backend(nil); err != nil {
-			c.Ui.Error(err.Error())
-			return 1
-		}
+	// If we outputted information, then we need to output a newline
+	// so that our success message is nicely spaced out from prior text.
+	if header {
+		c.Ui.Output("")
 	}
 
-	c.Ui.Output(c.Colorize().Color(
-		"\n" +
-			strings.TrimSpace(outputInitSuccess)))
+	c.Ui.Output(c.Colorize().Color(strings.TrimSpace(outputInitSuccess)))
 
 	return 0
 }
@@ -193,13 +223,17 @@ const outputInitEmpty = `
 [reset][bold]Terraform initialized in an empty directory![reset]
 
 The directory has no Terraform configuration files. You may begin working
-with Terraform immediately by creating Terraform configuration files!
+with Terraform immediately by creating Terraform configuration files.
 `
 
 const outputInitSuccess = `
-Terraform has been successfully initialized!
+[reset][bold][green]Terraform has been successfully initialized![reset][green]
 
 You may now begin working with Terraform. Try running "terraform plan" to see
 any changes that are required for your infrastructure. All Terraform commands
 should now work.
+
+If you ever set or change modules or backend configuration for Terraform,
+rerun this command to reinitialize your environment. If you forget, other
+commands will detect it and remind you to do so if necessary.
 `
