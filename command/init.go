@@ -78,6 +78,17 @@ func (c *InitCommand) Run(args []string) int {
 		}
 	}
 
+	// If our directory is empty, then we're done. We can't get or setup
+	// the backend with an empty directory.
+	if empty, err := config.IsEmptyDir(path); err != nil {
+		c.Ui.Error(fmt.Sprintf(
+			"Error checking configuration: %s", err))
+		return 1
+	} else if empty {
+		c.Ui.Output(c.Colorize().Color(outputInitEmpty))
+		return 0
+	}
+
 	// If we requested downloading modules, do that
 	if flagGet {
 		c.Ui.Output(c.Colorize().Color(fmt.Sprintf(
@@ -176,6 +187,13 @@ with a SOURCE parameter can only be used on a directory without existing
 Terraform files.
 
 Please resolve this issue and try again.
+`
+
+const outputInitEmpty = `
+[reset][bold]Terraform initialized in an empty directory![reset]
+
+The directory has no Terraform configuration files. You may begin working
+with Terraform immediately by creating Terraform configuration files!
 `
 
 const outputInitSuccess = `
