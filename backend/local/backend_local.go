@@ -18,38 +18,13 @@ func (b *Local) Context(op *backend.Operation) (*terraform.Context, state.State,
 }
 
 func (b *Local) context(op *backend.Operation) (*terraform.Context, state.State, error) {
-	var err error
-
-	// Setup our state. If we have a plan given, the state is directly from
-	// the plan itself.
-	var s state.State
-	if op.Plan != nil {
-		// Create a local state that targets our path to write and just
-		// write the plans state to it. This won't persist it on disk since
-		// PersistState isn't called yet.
-		s = &state.LocalState{
-			Path:    b.StateOutPath,
-			PathOut: b.StateOutPath,
-		}
-		s.WriteState(op.Plan.State)
-
-		// If we are backing up the state, wrap it
-		if path := b.StateBackupPath; path != "" {
-			s = &state.BackupState{
-				Real: s,
-				Path: path,
-			}
-		}
+	// Get the state.
+	s, err := b.State()
+	if err != nil {
+		return nil, nil, errwrap.Wrapf("Error loading state: {{err}}", err)
 	}
-
-	if s == nil {
-		s, err = b.State()
-		if err != nil {
-			return nil, nil, errwrap.Wrapf("Error loading state: {{err}}", err)
-		}
-		if err := s.RefreshState(); err != nil {
-			return nil, nil, errwrap.Wrapf("Error loading state: {{err}}", err)
-		}
+	if err := s.RefreshState(); err != nil {
+		return nil, nil, errwrap.Wrapf("Error loading state: {{err}}", err)
 	}
 
 	// Initialize our context options

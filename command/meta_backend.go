@@ -446,8 +446,18 @@ func (m *Meta) backendFromPlan(opts *BackendOpts) (backend.Backend, error) {
 			// Real state is somehow older, this is okay.
 
 		case terraform.StateAgeReceiverNewer:
+			// If we have an older serial it is a problem but if we have a
+			// differing serial but are still identical, just let it through.
+			if real.Equal(planState) {
+				log.Printf(
+					"[WARN] command: state in plan has older serial, but Equal is true")
+				break
+			}
+
 			// The real state is newer, this is not allowed.
-			return nil, fmt.Errorf(strings.TrimSpace(errBackendPlanOlder))
+			return nil, fmt.Errorf(
+				strings.TrimSpace(errBackendPlanOlder),
+				planState.Serial, real.Serial)
 		}
 	}
 
@@ -571,7 +581,7 @@ func (m *Meta) backend_c_R_s(
 	s := sMgr.State()
 
 	// Warn the user
-	m.Ui.Warn(strings.TrimSpace(warnBackendLegacy))
+	m.Ui.Warn(strings.TrimSpace(warnBackendLegacy) + "\n")
 
 	// We need to convert the config to map[string]interface{} since that
 	// is what the backends expect.
@@ -1404,6 +1414,9 @@ a new plan file against the latest state and try again.
 Terraform doesn't allow you to run plans that were created from older
 states since it doesn't properly represent the latest changes Terraform
 may have made, and can result in unsafe behavior.
+
+Plan Serial:    %[1]d
+Current Serial: %[2]d
 `
 
 const inputBackendMigrateChange = `

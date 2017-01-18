@@ -2395,9 +2395,10 @@ func TestMetaBackend_planLocalNewer(t *testing.T) {
 	// Save the original
 	original := testStateRead(t, DefaultStateFilename)
 
-	// Change the lineage
+	// Change the serial
 	planState := testStateRead(t, DefaultStateFilename)
 	planState.Serial = 7
+	planState.RootModule().Dependencies = []string{"foo"}
 
 	// Create the plan
 	plan := &terraform.Plan{

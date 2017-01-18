@@ -63,7 +63,7 @@ func TestLocal_applyError(t *testing.T) {
 		lock.Lock()
 		defer lock.Unlock()
 
-		if !errored {
+		if !errored && info.Id == "test_instance.bar" {
 			errored = true
 			return nil, fmt.Errorf("error")
 		}

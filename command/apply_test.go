@@ -670,12 +670,13 @@ func TestApply_plan_remoteState(t *testing.T) {
 
 	// State file should be not be installed
 	if _, err := os.Stat(filepath.Join(tmp, DefaultStateFilename)); err == nil {
-		t.Fatalf("State path should not exist")
+		data, _ := ioutil.ReadFile(DefaultStateFilename)
+		t.Fatalf("State path should not exist: %s", string(data))
 	}
 
-	// Check for remote state
-	if _, err := os.Stat(remoteStatePath); err != nil {
-		t.Fatalf("missing remote state: %s", err)
+	// Check that there is no remote state config
+	if _, err := os.Stat(remoteStatePath); err == nil {
+		t.Fatalf("has remote state config")
 	}
 }
 

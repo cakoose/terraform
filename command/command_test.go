@@ -170,7 +170,20 @@ func testState() *terraform.State {
 		},
 	}
 	state.Init()
-	return state
+
+	// Write and read the state so that it is properly initialized. We
+	// do this since we didn't call the normal NewState constructor.
+	var buf bytes.Buffer
+	if err := terraform.WriteState(state, &buf); err != nil {
+		panic(err)
+	}
+
+	result, err := terraform.ReadState(&buf)
+	if err != nil {
+		panic(err)
+	}
+
+	return result
 }
 
 func testStateFile(t *testing.T, s *terraform.State) string {
