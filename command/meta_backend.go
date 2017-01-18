@@ -117,8 +117,8 @@ func (m *Meta) Backend(opts *BackendOpts) (backend.Enhanced, error) {
 		StateOutPath:    stateOutPath,
 		StateBackupPath: backupPath,
 		ContextOpts:     m.contextOpts(),
-		Input:           m.Input(),
-		Validation:      true,
+		OpInput:         m.Input(),
+		OpValidation:    true,
 		Backend:         b,
 	}, nil
 }
@@ -1145,7 +1145,17 @@ func (m *Meta) backendInitFromConfig(c *config.Backend) (backend.Backend, error)
 	}
 	b := f()
 
-	// TODO: input
+	// TODO: test
+	// Ask for input if we have input enabled
+	if m.Input() {
+		var err error
+		config, err = b.Input(m.UIInput(), config)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"Error asking for input to configure the backend %q: %s",
+				c.Type, err)
+		}
+	}
 
 	// Validate
 	warns, errs := b.Validate(config)
